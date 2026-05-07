@@ -68,7 +68,8 @@ function registerMcp(): void {
 }
 
 function writeHooks(): void {
-  const hookCommand = `node "${resolve(DIST_ROOT, "hooks", "user-prompt-submit.js")}"`;
+  const promptHookCommand = `node "${resolve(DIST_ROOT, "hooks", "user-prompt-submit.js")}"`;
+  const postToolHookCommand = `node "${resolve(DIST_ROOT, "hooks", "post-tool-use.js")}"`;
   const settingsPath = resolve(process.cwd(), ".claude", "settings.json");
 
   let settings: Record<string, unknown> = {};
@@ -81,7 +82,8 @@ function writeHooks(): void {
   }
 
   const hooks = (settings.hooks as Record<string, unknown[]>) ?? {};
-  hooks.UserPromptSubmit = [{ type: "command", command: hookCommand }];
+  hooks.UserPromptSubmit = [{ type: "command", command: promptHookCommand }];
+  hooks.PostToolUse = [{ type: "command", command: postToolHookCommand }];
   settings.hooks = hooks;
 
   const settingsDir = resolve(process.cwd(), ".claude");
@@ -89,7 +91,7 @@ function writeHooks(): void {
     execSync(`mkdir -p "${settingsDir}"`);
   }
   writeFileSync(settingsPath, JSON.stringify(settings, null, 2) + "\n", "utf8");
-  console.log(`  ✓ Hook written to ${settingsPath}`);
+  console.log(`  ✓ Hooks written to ${settingsPath}`);
 }
 
 async function main(): Promise<void> {
@@ -155,6 +157,11 @@ async function main(): Promise<void> {
 Active features:
   • Intent hint prepended to every prompt (helps Claude pick the right tool)
   • Auto-compression for large NIAH-style queries (threshold: ${process.env.SCALEDOWN_COMPRESS_THRESHOLD ?? "10000"} tokens, rate: ${process.env.SCALEDOWN_COMPRESS_RATE ?? "0.3"})
+  • Post-tool output compression — large tool results are compressed before entering context (threshold: ${process.env.SCALEDOWN_POST_TOOL_THRESHOLD ?? "4000"} tokens)
+
+Environment variables:
+  SCALEDOWN_POST_TOOL_DISABLE=true   — disable post-tool compression
+  SCALEDOWN_POST_TOOL_THRESHOLD=N    — token threshold for tool output compression (default: 4000)
 
 On-demand MCP tools Claude can call:
   • sd_compress   — compress a large context block
