@@ -9,6 +9,8 @@ export interface Config {
   compressThreshold: number;
   compressRate: number | "auto";
   niahDisable: boolean;
+  postToolDisable: boolean;
+  postToolThreshold: number;
 }
 
 function readConfigFile(): { apiKey?: string } {
@@ -42,5 +44,19 @@ export function loadConfig(): Config {
 
   const niahDisable = process.env.SCALEDOWN_NIAH_DISABLE === "true";
 
-  return { apiKey, compressThreshold, compressRate, niahDisable };
+  const postToolDisable = process.env.SCALEDOWN_POST_TOOL_DISABLE === "true";
+
+  const postToolThresholdRaw = process.env.SCALEDOWN_POST_TOOL_THRESHOLD;
+  const postToolThreshold = postToolThresholdRaw
+    ? parseInt(postToolThresholdRaw, 10)
+    : 4000;
+
+  return {
+    apiKey,
+    compressThreshold,
+    compressRate,
+    niahDisable,
+    postToolDisable,
+    postToolThreshold,
+  };
 }
