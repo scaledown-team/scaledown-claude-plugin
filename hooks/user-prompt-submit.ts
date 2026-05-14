@@ -1,8 +1,9 @@
 #!/usr/bin/env node
+import { readFileSync } from "fs";
 import { ScaledownClient } from "../src/client.js";
 import { loadConfig } from "../src/config.js";
 import { isNiahQuery } from "../src/niah.js";
-import { addSaving } from "../src/stats.js";
+import { addRequest, addSaving, setContextWindow } from "../src/stats.js";
 
 interface ContextWindow {
   current_tokens: number;
@@ -13,6 +14,7 @@ interface HookInput {
   prompt?: string;
   context_window?: ContextWindow;
   session_id?: string;
+  transcript_path?: string;
   [key: string]: unknown;
 }
 
@@ -27,7 +29,7 @@ function logContextProgress(contextWindow: ContextWindow, compactThreshold: numb
   if (max_tokens === 0) return;
   const pct = Math.round((current_tokens / max_tokens) * 100);
   const bar = renderProgressBar(pct);
-  const tokenStr = `${current_tokens.toLocaleString()} / ${max_tokens.toLocaleString()} tokens`;
+  const tokenStr = `${current_tokens.toLocaleString("en-US")} / ${max_tokens.toLocaleString("en-US")} tokens`;
   const suffix = pct >= compactThreshold ? " ⚡ compaction imminent" : "";
   process.stderr.write(`scaledown: ${bar}  ${tokenStr}${suffix}\n`);
 }
@@ -84,8 +86,30 @@ async function main(): Promise<void> {
     return;
   }
 
-  if (config.showProgress && input.context_window) {
-    logContextProgress(input.context_window, config.compactThreshold);
+  // Read real token counts from the transcript — last assistant usage entry
+  // is the most recent actual API usage before this prompt.
+  const transcriptPath = input.transcript_path as string | undefined;
+  if (transcriptPath) {
+    try {
+      const lines = readFileSync(transcriptPath, "utf8").trim().split("\n");
+      type UsageEntry = { input_tokens: number; cache_read_input_tokens: number; cache_creation_input_tokens: number };
+      let lastUsage: UsageEntry | null = null;
+      for (const line of lines) {
+        const entry = JSON.parse(line) as Record<string, unknown>;
+        if (entry.type === "assistant" && entry.message && typeof entry.message === "object") {
+          const usage = (entry.message as Record<string, unknown>).usage as UsageEntry | undefined;
+          if (usage) lastUsage = usage;
+        }
+      }
+      if (lastUsage) {
+        const current = lastUsage.input_tokens + lastUsage.cache_read_input_tokens + lastUsage.cache_creation_input_tokens;
+        const max = config.maxContextTokens;
+        setContextWindow(current, max);
+        if (config.showProgress) logContextProgress({ current_tokens: current, max_tokens: max }, config.compactThreshold);
+      }
+    } catch {
+      // Transcript unreadable — skip progress display
+    }
   }
 
   const client = new ScaledownClient(config.apiKey);
@@ -100,6 +124,7 @@ async function main(): Promise<void> {
     process.stderr.write(
       `scaledown: intent=${classification.top_label} (${Math.round(topScore * 100)}%)\n`
     );
+    addRequest();
   } catch (err) {
     process.stderr.write(
       `scaledown: classify failed, skipping hint: ${String(err)}\n`
@@ -126,6 +151,7 @@ async function main(): Promise<void> {
         `scaledown: compressed prompt (${result.original_prompt_tokens} → ${result.compressed_prompt_tokens} tokens, -${pct}%)\n`
       );
       addSaving(sessionId, saved);
+      addRequest();
 
       // Re-apply the intent hint on top of the compressed output
       const classifyHintMatch = modifiedPrompt.match(

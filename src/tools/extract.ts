@@ -1,6 +1,8 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { ScaledownClient } from "../client.js";
+import { estimateTokens } from "../niah.js";
+import { addRequest, addSaving } from "../stats.js";
 
 export function registerExtractTool(
   server: McpServer,
@@ -55,6 +57,8 @@ export function registerExtractTool(
     },
     async ({ text, entities, threshold, top_n }) => {
       const result = await client.extract(text, entities as import("../client.js").EntityMap, threshold, top_n);
+      addSaving("mcp", Math.max(0, estimateTokens(text) - estimateTokens(JSON.stringify(result.entities))));
+      addRequest();
       return {
         content: [
           {

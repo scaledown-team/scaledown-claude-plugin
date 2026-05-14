@@ -5,7 +5,9 @@ import { resolve } from "path";
 
 interface StatsFile {
   totalSaved: number;
+  totalRequests: number;
   sessions: Record<string, number>;
+  contextWindow?: { current_tokens: number; max_tokens: number };
 }
 
 interface SessionInput {
@@ -25,7 +27,7 @@ function readStats(): StatsFile {
   try {
     return JSON.parse(readFileSync(STATS_FILE, "utf8")) as StatsFile;
   } catch {
-    return { totalSaved: 0, sessions: {} };
+    return { totalSaved: 0, totalRequests: 0, sessions: {} };
   }
 }
 
@@ -51,18 +53,22 @@ async function main(): Promise<void> {
   }
 
   const stats = readStats();
-  const sessionSaved = stats.sessions[sessionId] ?? 0;
   const totalSaved = stats.totalSaved ?? 0;
-
-  if (totalSaved === 0 && sessionSaved === 0) {
-    // Nothing saved yet — show nothing so the status line stays clean
-    process.stdout.write("");
-    return;
-  }
+  const totalRequests = stats.totalRequests ?? 0;
+  const ctx = stats.contextWindow;
 
   const parts: string[] = [];
-  if (sessionSaved > 0) parts.push(`↓ ${formatTokenCount(sessionSaved)} saved this session`);
-  if (totalSaved > 0) parts.push(`${formatTokenCount(totalSaved)} total`);
+
+  if (ctx && ctx.max_tokens > 0) {
+    const pct = Math.round((ctx.current_tokens / ctx.max_tokens) * 100);
+    const filled = Math.round((pct / 100) * 10);
+    const bar = "█".repeat(filled) + "░".repeat(10 - filled);
+    parts.push(`[${bar}] ${pct}% ctx`);
+  }
+
+  parts.push(`↓ ${formatTokenCount(totalSaved)} saved`);
+  if (totalRequests > 0) parts.push(`${totalRequests} reqs`);
+
   process.stdout.write(parts.join("  ·  "));
 }
 

@@ -13,6 +13,7 @@ export interface Config {
   postToolThreshold: number;
   compactThreshold: number;
   showProgress: boolean;
+  maxContextTokens: number;
 }
 
 function readConfigFile(): { apiKey?: string } {
@@ -60,6 +61,9 @@ export function loadConfig(): Config {
 
   const showProgress = process.env.SCALEDOWN_SHOW_PROGRESS !== "false";
 
+  const maxContextTokensRaw = process.env.SCALEDOWN_MAX_CONTEXT_TOKENS;
+  const maxContextTokens = maxContextTokensRaw ? parseInt(maxContextTokensRaw, 10) : 200000;
+
   return {
     apiKey,
     compressThreshold,
@@ -69,5 +73,6 @@ export function loadConfig(): Config {
     postToolThreshold,
     compactThreshold,
     showProgress,
+    maxContextTokens,
   };
 }

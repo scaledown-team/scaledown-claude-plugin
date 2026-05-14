@@ -2,6 +2,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { ScaledownClient } from "../client.js";
 import { Config } from "../config.js";
+import { addRequest, addSaving } from "../stats.js";
 
 export function registerCompressTool(
   server: McpServer,
@@ -34,6 +35,8 @@ export function registerCompressTool(
         rate ?? config.compressRate
       );
       const saved = result.original_prompt_tokens - result.compressed_prompt_tokens;
+      addSaving("mcp", saved);
+      addRequest();
       return {
         content: [
           {

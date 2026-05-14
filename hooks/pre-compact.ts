@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 import { ScaledownClient } from "../src/client.js";
 import { loadConfig } from "../src/config.js";
+import { estimateTokens } from "../src/niah.js";
+import { addRequest, addSaving } from "../src/stats.js";
 
 interface Message {
   role: string;
@@ -91,6 +93,9 @@ async function main(): Promise<void> {
     process.stderr.write(
       `scaledown: summary complete — ${result.input_chars} → ${result.output_chars} chars (-${ratio}%)\n`
     );
+    const saved = Math.max(0, estimateTokens(conversationText) - estimateTokens(result.summary));
+    addSaving(input.session_id ?? "compact", saved);
+    addRequest();
     process.stdout.write(JSON.stringify({ summary: result.summary }));
   } catch (err) {
     process.stderr.write(

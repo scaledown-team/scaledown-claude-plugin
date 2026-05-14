@@ -34,19 +34,23 @@ function detectRcFile(): string {
 
 function storeApiKey(apiKey: string): void {
   const rcFile = detectRcFile();
-  const exportLine = `\nexport SCALEDOWN_API_KEY="${apiKey}"\n`;
+  const compactThreshold = process.env.SCALEDOWN_COMPACT_THRESHOLD ?? "50";
+  const exportLine = `\nexport SCALEDOWN_API_KEY="${apiKey}"\nexport CLAUDE_AUTOCOMPACT_PCT_OVERRIDE=${compactThreshold}\n`;
 
   const existing = existsSync(rcFile) ? readFileSync(rcFile, "utf8") : "";
+
+  let updated = existing;
   if (existing.includes("SCALEDOWN_API_KEY")) {
-    // Replace the existing line
-    const updated = existing.replace(
-      /\nexport SCALEDOWN_API_KEY="[^"]*"\n/,
-      exportLine
-    );
-    writeFileSync(rcFile, updated, "utf8");
+    updated = updated.replace(/\nexport SCALEDOWN_API_KEY="[^"]*"\n/, `\nexport SCALEDOWN_API_KEY="${apiKey}"\n`);
   } else {
-    writeFileSync(rcFile, existing + exportLine, "utf8");
+    updated += `\nexport SCALEDOWN_API_KEY="${apiKey}"\n`;
   }
+  if (existing.includes("CLAUDE_AUTOCOMPACT_PCT_OVERRIDE")) {
+    updated = updated.replace(/\nexport CLAUDE_AUTOCOMPACT_PCT_OVERRIDE=\S+\n/, `\nexport CLAUDE_AUTOCOMPACT_PCT_OVERRIDE=${compactThreshold}\n`);
+  } else {
+    updated += `\nexport CLAUDE_AUTOCOMPACT_PCT_OVERRIDE=${compactThreshold}\n`;
+  }
+  writeFileSync(rcFile, updated, "utf8");
 
   // Write to config file so hooks can read it without a sourced shell
   const configDir = resolve(CONFIG_FILE, "..");

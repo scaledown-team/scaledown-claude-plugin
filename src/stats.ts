@@ -4,7 +4,9 @@ import { resolve } from "path";
 
 interface StatsFile {
   totalSaved: number;
+  totalRequests: number;
   sessions: Record<string, number>;
+  contextWindow?: { current_tokens: number; max_tokens: number };
 }
 
 export const STATS_FILE = resolve(homedir(), ".scaledown", "stats.json");
@@ -13,7 +15,7 @@ function readStats(): StatsFile {
   try {
     return JSON.parse(readFileSync(STATS_FILE, "utf8")) as StatsFile;
   } catch {
-    return { totalSaved: 0, sessions: {} };
+    return { totalSaved: 0, totalRequests: 0, sessions: {} };
   }
 }
 
@@ -24,10 +26,22 @@ function writeStats(stats: StatsFile): void {
 }
 
 export function addSaving(sessionId: string, tokens: number): void {
-  if (tokens <= 0) return;
+  if (!isFinite(tokens) || tokens <= 0) return;
   const stats = readStats();
   stats.totalSaved = (stats.totalSaved ?? 0) + tokens;
   stats.sessions[sessionId] = (stats.sessions[sessionId] ?? 0) + tokens;
+  writeStats(stats);
+}
+
+export function setContextWindow(current_tokens: number, max_tokens: number): void {
+  const stats = readStats();
+  stats.contextWindow = { current_tokens, max_tokens };
+  writeStats(stats);
+}
+
+export function addRequest(): void {
+  const stats = readStats();
+  stats.totalRequests = (stats.totalRequests ?? 0) + 1;
   writeStats(stats);
 }
 

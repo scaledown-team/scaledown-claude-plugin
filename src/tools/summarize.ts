@@ -1,6 +1,8 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { ScaledownClient } from "../client.js";
+import { estimateTokens } from "../niah.js";
+import { addRequest, addSaving } from "../stats.js";
 
 export function registerSummarizeTool(
   server: McpServer,
@@ -26,6 +28,8 @@ export function registerSummarizeTool(
     },
     async ({ text, instructions, max_tokens }) => {
       const result = await client.summarize(text, instructions, max_tokens);
+      addSaving("mcp", Math.max(0, estimateTokens(text) - estimateTokens(result.summary)));
+      addRequest();
       return {
         content: [
           {

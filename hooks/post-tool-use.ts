@@ -2,7 +2,7 @@
 import { ScaledownClient } from "../src/client.js";
 import { loadConfig } from "../src/config.js";
 import { estimateTokens } from "../src/niah.js";
-import { addSaving } from "../src/stats.js";
+import { addRequest, addSaving } from "../src/stats.js";
 
 type CommandType =
   | "ls"
@@ -469,17 +469,20 @@ async function main(): Promise<void> {
         `scaledown: summarized Read output (${result.input_chars} → ${result.output_chars} chars, saved ~${filtered.length - result.output_chars})\n`
       );
       addSaving(sessionId, summarizeSaved);
+      addRequest();
       process.stdout.write(
         JSON.stringify({ tool_response: replaceText(tool_response, result.summary) })
       );
     } else {
       const result = await client.compress(filtered, "", config.compressRate);
-      const saved =
-        result.original_prompt_tokens - result.compressed_prompt_tokens;
+      const origTokens = result.original_prompt_tokens ?? estimateTokens(filtered);
+      const compTokens = result.compressed_prompt_tokens ?? (result.compressed_prompt ? estimateTokens(result.compressed_prompt) : 0);
+      const saved = origTokens - compTokens;
       process.stderr.write(
-        `scaledown: compressed tool output (${result.original_prompt_tokens} → ${result.compressed_prompt_tokens} tokens, saved ${saved})\n`
+        `scaledown: compressed tool output (${origTokens} → ${compTokens} tokens, saved ${saved})\n`
       );
       addSaving(sessionId, saved);
+      addRequest();
       process.stdout.write(
         JSON.stringify({
           tool_response: replaceText(tool_response, result.compressed_prompt),
